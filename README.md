@@ -25,6 +25,7 @@ A minimal Express app that serves a Slack slash command `/balance`. Slack calls 
 | `DAILY_HYPE_CHANNEL_ID`          | Slack channel ID that receives the Ringo hype message.                      |
 | `DAILY_HYPE_UTC_HOUR`            | Integer hour (0-23 UTC) when the hype message should send (e.g., `12`).     |
 | `DAILY_HYPE_UTC_MINUTE`          | Minute (0-59) within that hour when the message is sent.                    |
+| `DAILY_HYPE_WEEKDAYS`            | (Optional) Comma-separated weekdays `0-6` (Sun=0) to send. Defaults to all. |
 | `DAILY_HYPE_MODEL`               | (Optional) OpenAI chat model name. Defaults to `gpt-4o-mini`.               |
 
 Create a `.env` file locally with the values above (Railway users: set them in the project variables UI).
@@ -56,8 +57,9 @@ The server runs a background job every `BALANCE_CHECK_INTERVAL_MINUTES`. If the 
 
 ### Daily Hype Scheduler
 
-- A second background job runs once per day at `DAILY_HYPE_UTC_HOUR:DAILY_HYPE_UTC_MINUTE` (UTC) using `node-cron`.
+- A second background job runs once per day at `DAILY_HYPE_UTC_HOUR:DAILY_HYPE_UTC_MINUTE` (UTC) on the weekdays listed in `DAILY_HYPE_WEEKDAYS` (default every day) using `node-cron`.
 - The job calls OpenAI's Chat Completions API with a fixed Ringo persona prompt, generates a short hype message, and posts it to `DAILY_HYPE_CHANNEL_ID`.
+- The prompt automatically adapts the tone by weekday (e.g., Monday kickoffs, Wednesday momentum pushes, Friday finish-strong rallies) so messages feel timely.
 - All Slack requests reuse the same `SLACK_BOT_TOKEN`, so no extra app scopes are required beyond `chat:write`.
 - Logs include the cron schedule and each attempt's success or failure so you can monitor delivery.
 

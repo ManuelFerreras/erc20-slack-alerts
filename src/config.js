@@ -34,6 +34,7 @@ const intervalMinutes = parseInt(
 );
 const hypeHour = parseInt(process.env.DAILY_HYPE_UTC_HOUR, 10);
 const hypeMinute = parseInt(process.env.DAILY_HYPE_UTC_MINUTE, 10);
+const rawWeekdays = (process.env.DAILY_HYPE_WEEKDAYS || "*").trim();
 
 if (Number.isNaN(port) || port <= 0) {
   console.error("PORT must be a positive integer");
@@ -60,6 +61,38 @@ if (Number.isNaN(hypeMinute) || hypeMinute < 0 || hypeMinute > 59) {
   process.exit(1);
 }
 
+function parseWeekdays(value) {
+  if (value === "*" || value === "") {
+    return [0, 1, 2, 3, 4, 5, 6];
+  }
+
+  const parts = value.split(",").map((part) => part.trim());
+  if (!parts.length) {
+    throw new Error("DAILY_HYPE_WEEKDAYS must be comma-separated integers 0-6");
+  }
+
+  const parsed = parts.map((part) => {
+    const day = Number(part);
+    if (Number.isNaN(day) || day < 0 || day > 6) {
+      throw new Error("DAILY_HYPE_WEEKDAYS supports integers between 0 and 6");
+    }
+    return day;
+  });
+
+  return Array.from(new Set(parsed)).sort((a, b) => a - b);
+}
+
+let hypeWeekdays;
+try {
+  hypeWeekdays = parseWeekdays(rawWeekdays);
+} catch (error) {
+  console.error(error.message);
+  process.exit(1);
+}
+
+const hypeWeekdayCronField =
+  hypeWeekdays.length === 7 ? "*" : hypeWeekdays.join(",");
+
 const config = {
   port,
   slackSigningSecret: process.env.SLACK_SIGNING_SECRET,
@@ -74,6 +107,8 @@ const config = {
   dailyHypeChannelId: process.env.DAILY_HYPE_CHANNEL_ID,
   dailyHypeUtcHour: hypeHour,
   dailyHypeUtcMinute: hypeMinute,
+  dailyHypeWeekdays: hypeWeekdays,
+  dailyHypeWeekdayCronField: hypeWeekdayCronField,
   dailyHypeModel: process.env.DAILY_HYPE_MODEL || "gpt-4o-mini",
 };
 

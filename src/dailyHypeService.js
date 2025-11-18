@@ -5,6 +5,22 @@ const OPENAI_CHAT_COMPLETIONS_URL =
   "https://api.openai.com/v1/chat/completions";
 const SLACK_POST_MESSAGE_URL = "https://slack.com/api/chat.postMessage";
 
+const WEEKDAY_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
+
+const WEEKDAY_GUIDANCE = {
+  1: "Kick off the week like champs—fresh feathers, bold bets, and the tempo we set today controls everything.",
+  3: "We're midweek—keep the engine roaring, celebrate progress, and dare everyone to keep shipping faster.",
+  5: "It's Friday—bring the closer energy, celebrate the grind, and demand one last legendary drop before any weekend strut.",
+};
+
 const RINGO_PROMPT = `
 You are **Ringo**, the mascot and voice of **Ringo**, a P2P predictions app that lives on X (Twitter).  
 Ringo is an **angry, spicy chicken**: competitive, sarcastic in a fun way, high-energy, and obsessed with making people place bold predictions against each other.
@@ -24,15 +40,29 @@ Guidelines for the message:
   - You love risk, conviction, and shipping fast.
 - Length: 3–6 sentences max.
 - Tone: pump the team up to build, ship, and break limits TODAY.
-- Optional: 1–3 emojis that fit the vibe (🔥 🐔 ⚡️ 💥 etc.), but don’t overdo it.
+- MUST: add emojis that fit the vibe (🔥 🐔 ⚡️ 💥 etc.). The message MUST START AND END WITH EMOJIS.
 - No hashtags, no links, no corporate jargon.
 - Make it in English and sound as native as possible, not robotic.
 - Current stage: early-stage, hungry startup building a product people LOVE to use.
+- Add some line breaks to make the message more readable.
 
 Now, generate **only the message itself**, nothing else.
 `.trim();
 
-async function generateDailyHypeMessage() {
+function buildSystemPromptForWeekday(weekday) {
+  const dayName = WEEKDAY_NAMES[weekday] ?? "Today";
+  const guidance =
+    WEEKDAY_GUIDANCE[weekday] ||
+    "Keep the pressure high, stay spicy, and make everyone chase bold convictions right now.";
+
+  return `${RINGO_PROMPT}
+
+Today is ${dayName}. ${guidance}`.trim();
+}
+
+async function generateDailyHypeMessage({
+  weekday = new Date().getUTCDay(),
+} = {}) {
   const response = await fetch(OPENAI_CHAT_COMPLETIONS_URL, {
     method: "POST",
     headers: {
@@ -45,11 +75,12 @@ async function generateDailyHypeMessage() {
       messages: [
         {
           role: "system",
-          content: RINGO_PROMPT,
+          content: buildSystemPromptForWeekday(weekday),
         },
         {
           role: "user",
-          content: "Give today's hype message following the persona rules.",
+          content:
+            "Return today's hype message only, following every rule you were given.",
         },
       ],
     }),
@@ -99,7 +130,8 @@ async function postDailyHypeToSlack(text) {
 }
 
 async function runDailyHypeJob(trigger = "manual") {
-  const hypeText = await generateDailyHypeMessage();
+  const weekday = new Date().getUTCDay();
+  const hypeText = await generateDailyHypeMessage({ weekday });
   await postDailyHypeToSlack(hypeText);
   console.log(`[daily-hype] Sent hype message via ${trigger}`);
 }
@@ -130,7 +162,7 @@ export function startDailyHypeScheduler() {
     return jobInstance;
   }
 
-  const cronExpression = `${config.dailyHypeUtcMinute} ${config.dailyHypeUtcHour} * * *`;
+  const cronExpression = `${config.dailyHypeUtcMinute} ${config.dailyHypeUtcHour} * * ${config.dailyHypeWeekdayCronField}`;
   jobInstance = cron.schedule(
     cronExpression,
     () => {
