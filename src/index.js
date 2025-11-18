@@ -3,6 +3,7 @@ import config from './config.js';
 import { verifySlackRequest } from './slackVerification.js';
 import { fetchFormattedUsdcBalance } from './balanceService.js';
 import { startBalanceMonitor } from './monitorService.js';
+import { startDailyHypeScheduler } from './dailyHypeService.js';
 
 const app = express();
 
@@ -70,3 +71,4 @@ app.listen(config.port, '0.0.0.0', () => {
 });
 
 startBalanceMonitor();
+startDailyHypeScheduler();

@@ -10,17 +10,22 @@ A minimal Express app that serves a Slack slash command `/balance`. Slack calls 
 
 ## Environment Variables
 
-| Variable                         | Description                                         |
-| -------------------------------- | --------------------------------------------------- |
-| `PORT`                           | HTTP port (defaults to `3000`).                     |
-| `SLACK_SIGNING_SECRET`           | Slack app signing secret for verifying requests.    |
-| `POLYGON_RPC_URL`                | Polygon RPC URL (HTTPS).                            |
-| `USDC_CONTRACT_ADDRESS`          | USDC contract address on Polygon.                   |
-| `TARGET_ADDRESS`                 | The Polygon wallet whose balance will be shown.     |
-| `SLACK_BOT_TOKEN`                | Bot token with `chat:write` scope to post alerts.   |
-| `ALERT_CHANNEL_ID`               | Channel ID where low-balance alerts will be posted. |
-| `MIN_USDC_THRESHOLD`             | Minimum USDC balance (decimal) before alerts fire.  |
-| `BALANCE_CHECK_INTERVAL_MINUTES` | Frequency (minutes) for automatic checks.           |
+| Variable                         | Description                                                                 |
+| -------------------------------- | --------------------------------------------------------------------------- |
+| `PORT`                           | HTTP port (defaults to `3000`).                                             |
+| `SLACK_SIGNING_SECRET`           | Slack app signing secret for verifying requests.                            |
+| `POLYGON_RPC_URL`                | Polygon RPC URL (HTTPS).                                                    |
+| `USDC_CONTRACT_ADDRESS`          | USDC contract address on Polygon.                                           |
+| `TARGET_ADDRESS`                 | The Polygon wallet whose balance will be shown.                             |
+| `SLACK_BOT_TOKEN`                | Bot token with `chat:write` scope to post alerts and hype messages.         |
+| `ALERT_CHANNEL_ID`               | Channel ID where low-balance alerts will be posted.                         |
+| `MIN_USDC_THRESHOLD`             | Minimum USDC balance (decimal) before alerts fire.                          |
+| `BALANCE_CHECK_INTERVAL_MINUTES` | Frequency (minutes) for automatic balance checks.                           |
+| `OPENAI_API_KEY`                 | Secret key used to call OpenAI Chat Completions for the daily hype message. |
+| `DAILY_HYPE_CHANNEL_ID`          | Slack channel ID that receives the Ringo hype message.                      |
+| `DAILY_HYPE_UTC_HOUR`            | Integer hour (0-23 UTC) when the hype message should send (e.g., `12`).     |
+| `DAILY_HYPE_UTC_MINUTE`          | Minute (0-59) within that hour when the message is sent.                    |
+| `DAILY_HYPE_MODEL`               | (Optional) OpenAI chat model name. Defaults to `gpt-4o-mini`.               |
 
 Create a `.env` file locally with the values above (Railway users: set them in the project variables UI).
 
@@ -48,6 +53,21 @@ The server listens on `0.0.0.0:$PORT` and exposes:
 ### Automatic Low-Balance Alerts
 
 The server runs a background job every `BALANCE_CHECK_INTERVAL_MINUTES`. If the wallet’s USDC balance falls below `MIN_USDC_THRESHOLD`, it posts a warning to `ALERT_CHANNEL_ID`. The interval and threshold are environment-driven so you can tune them without redeploying.
+
+### Daily Hype Scheduler
+
+- A second background job runs once per day at `DAILY_HYPE_UTC_HOUR:DAILY_HYPE_UTC_MINUTE` (UTC) using `node-cron`.
+- The job calls OpenAI's Chat Completions API with a fixed Ringo persona prompt, generates a short hype message, and posts it to `DAILY_HYPE_CHANNEL_ID`.
+- All Slack requests reuse the same `SLACK_BOT_TOKEN`, so no extra app scopes are required beyond `chat:write`.
+- Logs include the cron schedule and each attempt's success or failure so you can monitor delivery.
+
+To manually trigger the hype sender for verification, run:
+
+```bash
+node -e "import('./src/dailyHypeService.js').then(m => m.sendDailyHypeNow())"
+```
+
+The helper reuses the same guard as the cron job, so it is safe to fire multiple times while testing.
 
 ## Railway Deployment
 
