@@ -123,7 +123,7 @@ async function postDailyHypeToSlack(text) {
   const payload = await response.json();
   if (!payload.ok) {
     throw new Error(
-      payload.error || "Unknown Slack API error while posting hype"
+      payload.error || "Unknown Slack API error while posting hype",
     );
   }
   return payload;
@@ -142,7 +142,7 @@ let isRunning = false;
 async function guardRun(trigger) {
   if (isRunning) {
     console.warn(
-      "[daily-hype] Previous run still executing, skipping new trigger"
+      "[daily-hype] Previous run still executing, skipping new trigger",
     );
     return;
   }
@@ -158,6 +158,13 @@ async function guardRun(trigger) {
 }
 
 export function startDailyHypeScheduler() {
+  if (!config.dailyHypeEnabled) {
+    console.log(
+      "[daily-hype] Feature disabled (missing DAILY_HYPE_CHANNEL_ID, DAILY_HYPE_UTC_HOUR, or DAILY_HYPE_UTC_MINUTE)",
+    );
+    return null;
+  }
+
   if (jobInstance) {
     return jobInstance;
   }
@@ -168,16 +175,22 @@ export function startDailyHypeScheduler() {
     () => {
       guardRun("scheduled");
     },
-    { timezone: "UTC" }
+    { timezone: "UTC" },
   );
 
   console.log(
-    `[daily-hype] Scheduler registered for ${cronExpression} UTC using model ${config.dailyHypeModel}`
+    `[daily-hype] Scheduler registered for ${cronExpression} UTC using model ${config.dailyHypeModel}`,
   );
 
   return jobInstance;
 }
 
 export async function sendDailyHypeNow() {
+  if (!config.dailyHypeEnabled) {
+    console.log(
+      "[daily-hype] Feature disabled (missing DAILY_HYPE_CHANNEL_ID, DAILY_HYPE_UTC_HOUR, or DAILY_HYPE_UTC_MINUTE)",
+    );
+    return;
+  }
   await guardRun("manual");
 }

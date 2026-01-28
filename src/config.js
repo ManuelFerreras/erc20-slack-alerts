@@ -12,16 +12,13 @@ const requiredEnvVars = [
   "MIN_USDC_THRESHOLD",
   "BALANCE_CHECK_INTERVAL_MINUTES",
   "OPENAI_API_KEY",
-  "DAILY_HYPE_CHANNEL_ID",
-  "DAILY_HYPE_UTC_HOUR",
-  "DAILY_HYPE_UTC_MINUTE",
 ];
 
 const missing = requiredEnvVars.filter((key) => !process.env[key]);
 
 if (missing.length) {
   console.error(
-    `Missing required environment variables: ${missing.join(", ")}`
+    `Missing required environment variables: ${missing.join(", ")}`,
   );
   process.exit(1);
 }
@@ -30,11 +27,8 @@ const port = parseInt(process.env.PORT || "3000", 10);
 const minThreshold = Number(process.env.MIN_USDC_THRESHOLD);
 const intervalMinutes = parseInt(
   process.env.BALANCE_CHECK_INTERVAL_MINUTES,
-  10
+  10,
 );
-const hypeHour = parseInt(process.env.DAILY_HYPE_UTC_HOUR, 10);
-const hypeMinute = parseInt(process.env.DAILY_HYPE_UTC_MINUTE, 10);
-const rawWeekdays = (process.env.DAILY_HYPE_WEEKDAYS || "*").trim();
 
 if (Number.isNaN(port) || port <= 0) {
   console.error("PORT must be a positive integer");
@@ -51,14 +45,29 @@ if (Number.isNaN(intervalMinutes) || intervalMinutes <= 0) {
   process.exit(1);
 }
 
-if (Number.isNaN(hypeHour) || hypeHour < 0 || hypeHour > 23) {
-  console.error("DAILY_HYPE_UTC_HOUR must be an integer between 0 and 23");
-  process.exit(1);
-}
+// Daily hype feature is optional - only enabled if all required vars are set
+const dailyHypeChannelId = process.env.DAILY_HYPE_CHANNEL_ID;
+const rawHypeHour = process.env.DAILY_HYPE_UTC_HOUR;
+const rawHypeMinute = process.env.DAILY_HYPE_UTC_MINUTE;
+const dailyHypeEnabled = !!(dailyHypeChannelId && rawHypeHour && rawHypeMinute);
 
-if (Number.isNaN(hypeMinute) || hypeMinute < 0 || hypeMinute > 59) {
-  console.error("DAILY_HYPE_UTC_MINUTE must be an integer between 0 and 59");
-  process.exit(1);
+let hypeHour = null;
+let hypeMinute = null;
+const rawWeekdays = (process.env.DAILY_HYPE_WEEKDAYS || "*").trim();
+
+if (dailyHypeEnabled) {
+  hypeHour = parseInt(rawHypeHour, 10);
+  hypeMinute = parseInt(rawHypeMinute, 10);
+
+  if (Number.isNaN(hypeHour) || hypeHour < 0 || hypeHour > 23) {
+    console.error("DAILY_HYPE_UTC_HOUR must be an integer between 0 and 23");
+    process.exit(1);
+  }
+
+  if (Number.isNaN(hypeMinute) || hypeMinute < 0 || hypeMinute > 59) {
+    console.error("DAILY_HYPE_UTC_MINUTE must be an integer between 0 and 59");
+    process.exit(1);
+  }
 }
 
 function parseWeekdays(value) {
@@ -82,16 +91,20 @@ function parseWeekdays(value) {
   return Array.from(new Set(parsed)).sort((a, b) => a - b);
 }
 
-let hypeWeekdays;
-try {
-  hypeWeekdays = parseWeekdays(rawWeekdays);
-} catch (error) {
-  console.error(error.message);
-  process.exit(1);
-}
+let hypeWeekdays = null;
+let hypeWeekdayCronField = null;
 
-const hypeWeekdayCronField =
-  hypeWeekdays.length === 7 ? "*" : hypeWeekdays.join(",");
+if (dailyHypeEnabled) {
+  try {
+    hypeWeekdays = parseWeekdays(rawWeekdays);
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+
+  hypeWeekdayCronField =
+    hypeWeekdays.length === 7 ? "*" : hypeWeekdays.join(",");
+}
 
 const config = {
   port,
@@ -104,7 +117,8 @@ const config = {
   minUsdcThreshold: minThreshold,
   balanceCheckIntervalMinutes: intervalMinutes,
   openAiApiKey: process.env.OPENAI_API_KEY,
-  dailyHypeChannelId: process.env.DAILY_HYPE_CHANNEL_ID,
+  dailyHypeEnabled,
+  dailyHypeChannelId,
   dailyHypeUtcHour: hypeHour,
   dailyHypeUtcMinute: hypeMinute,
   dailyHypeWeekdays: hypeWeekdays,
